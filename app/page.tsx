@@ -1,103 +1,198 @@
-import Image from "next/image";
+"use client";
+import React, { useState } from "react";
 
-export default function Home() {
+const PROXY_URL = "/api/proxy";
+const UPDATE_URL = "https://e1.theflex.ai/anyapp/update/";
+const SEARCH_URL = "https://e1.theflex.ai/anyapp/search/";
+const APP_SECRET = "38475203487kwsdjfvb1023897yfwbhekrfj";
+const RECORD_ID = "rec_001";
+const FEATURE_NAME = "test_001";
+const DATASET = "feature_data";
+
+// Helper: Format UTC ISO string to "YYYY-MM-DD | HH:mm:ss"
+function formatUTCForDisplay(isoString: string) {
+  if (!isoString) return "N/A";
+  // Accepts: 2025-07-08T14:54:15+00:00 or 2025-07-08T14:54:15Z
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return isoString;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const year = date.getUTCFullYear();
+  const month = pad(date.getUTCMonth() + 1);
+  const day = pad(date.getUTCDate());
+  const hour = pad(date.getUTCHours());
+  const minute = pad(date.getUTCMinutes());
+  const second = pad(date.getUTCSeconds());
+  return `${year}-${month}-${day} | ${hour}:${minute}:${second}`;
+}
+
+export default function Dashboard() {
+  const [value, setValue] = useState("");
+  const [delay, setDelay] = useState("0");
+  const [fetchedValue, setFetchedValue] = useState("");
+  const [modifiedOnUTC, setModifiedOnUTC] = useState("");
+  const [timing, setTiming] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Async wait helper
+  const wait = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
+  const handleUpdate = async () => {
+    setLoading(true);
+    setError(null);
+    setFetchedValue("");
+    setModifiedOnUTC("");
+    const start = performance.now();
+
+    // Use UTC time for modified_on
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const year = now.getUTCFullYear();
+    const month = pad(now.getUTCMonth() + 1);
+    const day = pad(now.getUTCDate());
+    const hour = pad(now.getUTCHours());
+    const minute = pad(now.getUTCMinutes());
+    const second = pad(now.getUTCSeconds());
+    const utcISOString = `${year}-${month}-${day}T${hour}:${minute}:${second}+00:00`;
+
+    const updatePayload = {
+      url: UPDATE_URL,
+      payload: {
+        data: {
+          record_id: RECORD_ID,
+          feature_name: FEATURE_NAME,
+          fields_to_update: {
+            value,
+            modified_on: utcISOString,
+          },
+        },
+        dataset: DATASET,
+        app_secret: APP_SECRET,
+      },
+    };
+
+    const updateRes = await fetch(PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatePayload),
+    });
+
+    if (updateRes.ok) {
+      // Wait for the specified delay (seconds to milliseconds)
+      let delaySec = Number(delay);
+      if (isNaN(delaySec) || delaySec < 0) delaySec = 0;
+      const delayMs = Math.round(delaySec * 1000);
+
+      if (delayMs > 0) {
+        await wait(delayMs);
+      }
+
+      // Fetch updated value via proxy
+      const searchPayload = {
+        url: SEARCH_URL,
+        payload: {
+          conditions: [
+            {
+              field: "feature_name",
+              value: FEATURE_NAME,
+              search_type: "exact",
+            },
+            { field: "record_id", value: RECORD_ID, search_type: "exact" },
+          ],
+          dataset: DATASET,
+          app_secret: APP_SECRET,
+        },
+      };
+
+      const searchRes = await fetch(PROXY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(searchPayload),
+      });
+
+      if (searchRes.ok) {
+        const data = await searchRes.json();
+        const foundValue = data?.data?.[0]?.value ?? "N/A";
+        setFetchedValue(foundValue);
+        const modifiedOn = data?.data?.[0]?.modified_on ?? "N/A";
+        setModifiedOnUTC(modifiedOn);
+      } else {
+        setFetchedValue("Fetch failed");
+        setModifiedOnUTC("N/A");
+        setError("Failed to fetch updated value.");
+      }
+      setTiming(performance.now() - start);
+    } else {
+      setFetchedValue("Update failed");
+      setModifiedOnUTC("N/A");
+      setTiming(null);
+      setError("Failed to update value.");
+    }
+    setLoading(false);
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
+    <div className="max-w-md mx-auto mt-16 p-8 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
+      <h2 className="text-2xl font-bold mb-6 text-cyan-300">
+        API Update & Fetch Dashboard
+      </h2>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!loading && value) await handleUpdate();
+        }}
+      >
+        <label className="block mb-2 font-medium text-gray-200">
+          Value to Update:
+        </label>
+        <input
+          className="border border-gray-600 bg-gray-900 text-gray-100 px-3 py-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          disabled={loading}
         />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+        <label className="block mt-5 mb-2 font-medium text-gray-200">
+          Delay before fetch (seconds, e.g. 0.6):
+        </label>
+        <input
+          type="number"
+          min="0"
+          step="any"
+          className="border border-gray-600 bg-gray-900 text-gray-100 px-3 py-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          value={delay}
+          onChange={(e) => setDelay(e.target.value)}
+          disabled={loading}
+        />
+
+        <button
+          type="submit"
+          className="bg-cyan-600 text-white px-5 py-2 rounded hover:bg-cyan-700 disabled:opacity-50 transition mt-5"
+          disabled={loading || !value}
+        >
+          {loading ? "Updating..." : "Update & Fetch"}
+        </button>
+      </form>
+      <div className="mt-8">
+        <div>
+          <span className="font-medium text-gray-300">Fetched Value:</span>{" "}
+          <span className="text-green-400">{fetchedValue}</span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <div>
+          <span className="font-medium text-gray-300">Modified On (UTC):</span>{" "}
+          <span className="text-yellow-300">
+            {formatUTCForDisplay(modifiedOnUTC)}
+          </span>
+        </div>
+        <div>
+          <span className="font-medium text-gray-300">Time Taken:</span>{" "}
+          <span className="text-cyan-400">
+            {timing !== null ? `${timing.toFixed(2)} ms` : "--"}
+          </span>
+        </div>
+        {error && <div className="mt-4 text-red-400 font-medium">{error}</div>}
+      </div>
     </div>
   );
 }
