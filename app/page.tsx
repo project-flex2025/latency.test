@@ -163,97 +163,100 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 p-8 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
-      <h2 className="text-2xl font-bold mb-6 text-cyan-300">
-        API Update & Fetch Dashboard
-      </h2>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!loading && value) await handleUpdate();
-        }}
-      >
-        <label className="block mb-2 font-medium text-gray-200">
-          Value to Update:
-        </label>
-        <input
-          className="border border-gray-600 bg-gray-900 text-gray-100 px-3 py-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          disabled={loading}
-        />
-
-        <label className="block mt-5 mb-2 font-medium text-gray-200">
-          Delay before fetch (seconds, e.g. 0.6):
-        </label>
-        <input
-          type="number"
-          min="0"
-          step="any"
-          className="border border-gray-600 bg-gray-900 text-gray-100 px-3 py-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
-          value={delay}
-          onChange={(e) => setDelay(e.target.value)}
-          disabled={loading}
-        />
-
-        <button
-          type="submit"
-          className="bg-cyan-600 text-white px-5 py-2 rounded hover:bg-cyan-700 disabled:opacity-50 transition mt-5"
-          disabled={loading || !value}
+    <div className="min-h-screen flex items-center justify-center bg-gray-950">
+      <div className="w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-lg border border-gray-700 flex flex-col items-center">
+        <h2 className="text-2xl font-bold mb-6 text-cyan-300 text-center">
+          API Update & Fetch Dashboard
+        </h2>
+        <form
+          className="w-full"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!loading && value) await handleUpdate();
+          }}
         >
-          {loading ? "Updating..." : "Update & Fetch"}
-        </button>
-      </form>
-      <div className="mt-8">
-        <table className="w-full border-separate border-spacing-y-2">
-          <tbody>
-            <tr>
-              <td className="text-amber-400 font-medium bg-gray-900 rounded-l px-2 py-1">
-                Update 200 OK At:
-              </td>
-              <td className="update-ok-time text-amber-400 font-mono font-semibold rounded-r px-2 py-1">
-                {updateOkTime || "--"}
-              </td>
-            </tr>
-            <tr>
-              <td className="text-sky-400 font-medium bg-gray-900 rounded-l px-2 py-1">
-                Fetch Requested At:
-              </td>
-              <td className="fetch-time text-sky-400 font-mono font-semibold rounded-r px-2 py-1">
-                {fetchRequestedTime || "--"}
-              </td>
-            </tr>
-            <tr>
-              <td className="text-green-400 font-medium bg-gray-900 rounded-l px-2 py-1">
-                Fetched Value:
-              </td>
-              <td className="value text-green-400 font-mono font-semibold rounded-r px-2 py-1">
-                {fetchedValue || "--"}
-              </td>
-            </tr>
-            <tr>
-              <td className="text-yellow-300 font-medium bg-gray-900 rounded-l px-2 py-1">
-                Modified On (UTC):
-              </td>
-              <td className="modified text-yellow-300 font-mono font-semibold rounded-r px-2 py-1">
-                {formatUTCForDisplay(modifiedOnUTC)}
-              </td>
-            </tr>
-            <tr>
-              <td className="text-cyan-400 font-medium bg-gray-900 rounded-l px-2 py-1">
-                Time Taken:
-              </td>
-              <td className="timing text-cyan-400 font-mono font-semibold rounded-r px-2 py-1">
-                {timing !== null ? `${timing.toFixed(2)} ms` : "--"}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        {error && (
-          <div className="mt-4 text-red-400 font-medium bg-gray-900 rounded px-3 py-2">
-            {error}
-          </div>
-        )}
+          <label className="block mb-2 font-medium text-gray-200">
+            Value to Update:
+          </label>
+          <input
+            className="border border-gray-600 bg-gray-900 text-gray-100 px-3 py-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            disabled={loading}
+          />
+
+          <label className="block mt-5 mb-2 font-medium text-gray-200">
+            Delay before fetch (seconds, e.g. 0.6):
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            className="border border-gray-600 bg-gray-900 text-gray-100 px-3 py-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            value={delay}
+            onChange={(e) => setDelay(e.target.value)}
+            disabled={loading}
+          />
+
+          <button
+            type="submit"
+            className="bg-cyan-600 text-white px-5 py-2 rounded hover:bg-cyan-700 disabled:opacity-50 transition mt-5 w-full"
+            disabled={loading || !value}
+          >
+            {loading ? "Updating..." : "Update & Fetch"}
+          </button>
+        </form>
+        <div className="mt-8 w-full flex flex-col items-center">
+          <table className="w-full border-separate border-spacing-y-2">
+            <tbody>
+              <tr>
+                <td className="text-amber-400 font-medium bg-gray-900 rounded-l px-2 py-1">
+                  Update 200 OK At:
+                </td>
+                <td className="text-amber-400 font-mono font-semibold rounded-r px-2 py-1">
+                  {updateOkTime || "--"}
+                </td>
+              </tr>
+              <tr>
+                <td className="text-sky-400 font-medium bg-gray-900 rounded-l px-2 py-1">
+                  Fetch Requested At:
+                </td>
+                <td className="text-sky-400 font-mono font-semibold rounded-r px-2 py-1">
+                  {fetchRequestedTime || "--"}
+                </td>
+              </tr>
+              <tr>
+                <td className="text-green-400 font-medium bg-gray-900 rounded-l px-2 py-1">
+                  Fetched Value:
+                </td>
+                <td className="text-green-400 font-mono font-semibold rounded-r px-2 py-1">
+                  {fetchedValue || "--"}
+                </td>
+              </tr>
+              <tr>
+                <td className="text-yellow-300 font-medium bg-gray-900 rounded-l px-2 py-1">
+                  Modified On (UTC):
+                </td>
+                <td className="text-yellow-300 font-mono font-semibold rounded-r px-2 py-1">
+                  {formatUTCForDisplay(modifiedOnUTC)}
+                </td>
+              </tr>
+              <tr>
+                <td className="text-cyan-400 font-medium bg-gray-900 rounded-l px-2 py-1">
+                  Time Taken:
+                </td>
+                <td className="text-cyan-400 font-mono font-semibold rounded-r px-2 py-1">
+                  {timing !== null ? `${timing.toFixed(2)} ms` : "--"}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {error && (
+            <div className="mt-4 text-red-400 font-medium bg-gray-900 rounded px-3 py-2 w-full text-center">
+              {error}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

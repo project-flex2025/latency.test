@@ -1,237 +1,384 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>API Update & Fetch Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body {
-      background: #0f172a;
-      color: #f1f5f9;
-      font-family: 'Segoe UI', Arial, sans-serif;
-      min-height: 100vh;
-      margin: 0;
-    }
-    .container {
-      max-width: 420px;
-      margin: 48px auto;
-      padding: 32px;
-      background: #1e293b;
-      border-radius: 12px;
-      box-shadow: 0 4px 32px #0006;
-      border: 1px solid #334155;
-    }
-    h2 {
-      color: #22d3ee;
-      margin-bottom: 24px;
-      font-size: 1.6rem;
-      font-weight: bold;
-    }
-    label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 500;
-      color: #e5e7eb;
-    }
-    input[type="text"], input[type="number"] {
-      width: 100%;
-      padding: 8px 12px;
-      border-radius: 6px;
-      border: 1px solid #334155;
-      background: #0f172a;
-      color: #f1f5f9;
-      margin-bottom: 18px;
-      font-size: 1rem;
-    }
-    input:disabled {
-      opacity: 0.7;
-    }
-    button {
-      background: #06b6d4;
-      color: #fff;
-      padding: 10px 24px;
-      border: none;
-      border-radius: 6px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
-      margin-top: 10px;
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .result {
-      margin-top: 32px;
-    }
-    .result span {
-      display: inline-block;
-      min-width: 110px;
-      font-weight: 500;
-      color: #e5e7eb;
-    }
-    .value { color: #4ade80; }
-    .modified { color: #fde68a; }
-    .timing { color: #22d3ee; }
-    .error { color: #f87171; font-weight: 500; margin-top: 16px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h2>API Update & Fetch Dashboard</h2>
-    <form id="dashboard-form" autocomplete="off">
-      <label for="value">Value to Update:</label>
-      <input id="value" type="text" required autocomplete="off" />
-
-      <label for="delay">Delay before fetch (seconds, e.g. 0.6):</label>
-      <input id="delay" type="number" min="0" step="any" value="0" />
-
-      <button id="submit-btn" type="submit">Update &amp; Fetch</button>
-    </form>
-    <div class="result">
-      <div><span>Fetched Value:</span> <span class="value" id="fetched-value">--</span></div>
-      <div><span>Modified On (UTC):</span> <span class="modified" id="modified-on">--</span></div>
-      <div><span>Time Taken:</span> <span class="timing" id="timing">--</span></div>
-      <div class="error" id="error"></div>
-    </div>
-  </div>
-
-  <script>
-    // Constants
-    const PROXY_URL = "/api/proxy";
-    const UPDATE_URL = "https://e1.theflex.ai/anyapp/update/";
-    const SEARCH_URL = "https://e1.theflex.ai/anyapp/search/";
-    const APP_SECRET = "38475203487kwsdjfvb1023897yfwbhekrfj";
-    const RECORD_ID = "rec_001";
-    const FEATURE_NAME = "test_001";
-    const DATASET = "feature_data";
-
-    // Helper: Format UTC ISO string to "YYYY-MM-DD | HH:mm:ss"
-    function formatUTCForDisplay(isoString) {
-      if (!isoString) return "N/A";
-      const date = new Date(isoString);
-      if (isNaN(date.getTime())) return isoString;
-      const pad = n => n.toString().padStart(2, "0");
-      const year = date.getUTCFullYear();
-      const month = pad(date.getUTCMonth() + 1);
-      const day = pad(date.getUTCDate());
-      const hour = pad(date.getUTCHours());
-      const minute = pad(date.getUTCMinutes());
-      const second = pad(date.getUTCSeconds());
-      return `${year}-${month}-${day} | ${hour}:${minute}:${second}`;
-    }
-
-    // Helper: Wait for ms milliseconds
-    function wait(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    document.getElementById("dashboard-form").addEventListener("submit", async function (e) {
-      e.preventDefault();
-
-      const value = document.getElementById("value").value;
-      const delay = document.getElementById("delay").value;
-      const submitBtn = document.getElementById("submit-btn");
-      const fetchedValueEl = document.getElementById("fetched-value");
-      const modifiedOnEl = document.getElementById("modified-on");
-      const timingEl = document.getElementById("timing");
-      const errorEl = document.getElementById("error");
-
-      submitBtn.disabled = true;
-      fetchedValueEl.textContent = "--";
-      modifiedOnEl.textContent = "--";
-      timingEl.textContent = "--";
-      errorEl.textContent = "";
-
-      const start = performance.now();
-
-      // Use UTC time for modified_on
-      const now = new Date();
-      const pad = n => n.toString().padStart(2, "0");
-      const year = now.getUTCFullYear();
-      const month = pad(now.getUTCMonth() + 1);
-      const day = pad(now.getUTCDate());
-      const hour = pad(now.getUTCHours());
-      const minute = pad(now.getUTCMinutes());
-      const second = pad(now.getUTCSeconds());
-      const utcISOString = `${year}-${month}-${day}T${hour}:${minute}:${second}+00:00`;
-
-      // 1. Send update via proxy
-      const updatePayload = {
-        url: UPDATE_URL,
-        payload: {
-          data: {
-            record_id: RECORD_ID,
-            feature_name: FEATURE_NAME,
-            fields_to_update: {
-              value: value,
-              modified_on: utcISOString,
-            },
-          },
-          dataset: DATASET,
-          app_secret: APP_SECRET,
-        },
-      };
-
-      try {
-        const updateRes = await fetch(PROXY_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updatePayload),
-        });
-
-        if (!updateRes.ok) {
-          errorEl.textContent = "Failed to update value.";
-          submitBtn.disabled = false;
-          return;
-        }
-
-        // 2. Wait for the specified delay (seconds to ms)
-        let delaySec = Number(delay);
-        if (isNaN(delaySec) || delaySec < 0) delaySec = 0;
-        const delayMs = Math.round(delaySec * 1000);
-        if (delayMs > 0) await wait(delayMs);
-
-        // 3. Fetch updated value via proxy
-        const searchPayload = {
-          url: SEARCH_URL,
-          payload: {
-            conditions: [
-              { field: "feature_name", value: FEATURE_NAME, search_type: "exact" },
-              { field: "record_id", value: RECORD_ID, search_type: "exact" },
-            ],
-            dataset: DATASET,
-            app_secret: APP_SECRET,
-          },
-        };
-
-        const searchRes = await fetch(PROXY_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(searchPayload),
-        });
-
-        if (!searchRes.ok) {
-          errorEl.textContent = "Failed to fetch updated value.";
-          submitBtn.disabled = false;
-          return;
-        }
-
-        const data = await searchRes.json();
-        const foundValue = data?.data?.[0]?.value ?? "N/A";
-        const modifiedOn = data?.data?.[0]?.modified_on ?? "N/A";
-        fetchedValueEl.textContent = foundValue;
-        modifiedOnEl.textContent = formatUTCForDisplay(modifiedOn);
-
-        const elapsed = performance.now() - start;
-        timingEl.textContent = `${elapsed.toFixed(2)} ms`;
-      } catch (err) {
-        errorEl.textContent = "Unexpected error: " + err;
-      } finally {
-        submitBtn.disabled = false;
+  <head>
+    <meta charset="UTF-8" />
+    <title>API Update & Fetch Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: #0f172a;
+        color: #f1f5f9;
+        font-family: "Segoe UI", Arial, sans-serif;
+        box-sizing: border-box;
       }
-    });
-  </script>
-</body>
+      body {
+        min-height: 100vh;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .container {
+        width: 100%;
+        max-width: 420px;
+        padding: 32px;
+        background: #1e293b;
+        border-radius: 12px;
+        box-shadow: 0 4px 32px #0006;
+        border: 1px solid #334155;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      h2 {
+        color: #22d3ee;
+        margin-bottom: 24px;
+        font-size: 1.6rem;
+        font-weight: bold;
+        text-align: center;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #e5e7eb;
+      }
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: #f1f5f9;
+        margin-bottom: 18px;
+        font-size: 1rem;
+        box-sizing: border-box;
+      }
+      input:disabled {
+        opacity: 0.7;
+      }
+      button {
+        background: #06b6d4;
+        color: #fff;
+        padding: 10px 24px;
+        border: none;
+        border-radius: 6px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        margin-top: 10px;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .result {
+        margin-top: 24px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .result-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0 8px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+        background: #1e293b;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px #0003;
+      }
+      .result-table td {
+        padding: 10px 12px;
+        font-size: 1rem;
+        vertical-align: middle;
+        color: #e5e7eb;
+      }
+      .result-table tr td:first-child {
+        color: #a5b4fc;
+        font-weight: 500;
+        background: #111827;
+        border-right: 2px solid #222a35;
+        width: 48%;
+      }
+      .result-table tr td:last-child {
+        width: 52%;
+        font-family: "Fira Mono", "Consolas", monospace;
+        font-size: 1.01rem;
+        font-weight: 600;
+        border-radius: 0 6px 6px 0;
+      }
+      /* Color coding for value cells using attribute selectors for reliability */
+      td#update-ok-time {
+        color: #fbbf24;
+      } /* Amber */
+      td#fetch-time {
+        color: #38bdf8;
+      } /* Sky */
+      td#fetched-value {
+        color: #4ade80;
+      } /* Emerald */
+      td#modified-on {
+        color: #fde68a;
+      } /* Yellow */
+      td#timing {
+        color: #22d3ee;
+      } /* Cyan */
+      .error {
+        color: #f87171;
+        font-weight: 500;
+        margin-top: 16px;
+        font-size: 1.05rem;
+        background: #1e293b;
+        border-radius: 6px;
+        padding: 8px 12px;
+        width: 100%;
+        box-sizing: border-box;
+        text-align: center;
+      }
+      @media (max-width: 480px) {
+        .container {
+          padding: 12px;
+        }
+        .result-table td {
+          padding: 7px 6px;
+          font-size: 0.97rem;
+        }
+        h2 {
+          font-size: 1.2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>API Update & Fetch Dashboard</h2>
+      <form id="dashboard-form" autocomplete="off" style="width: 100%">
+        <label for="value">Value to Update:</label>
+        <input id="value" type="text" required autocomplete="off" />
+
+        <label for="delay">Delay before fetch (seconds, e.g. 0.6):</label>
+        <input id="delay" type="number" min="0" step="any" value="0" />
+
+        <button id="submit-btn" type="submit">Update &amp; Fetch</button>
+      </form>
+      <div class="result">
+        <table class="result-table">
+          <tr>
+            <td>Update 200 OK At:</td>
+            <td id="update-ok-time">--</td>
+          </tr>
+          <tr>
+            <td>Fetch Requested At:</td>
+            <td id="fetch-time">--</td>
+          </tr>
+          <tr>
+            <td>Fetched Value:</td>
+            <td id="fetched-value">--</td>
+          </tr>
+          <tr>
+            <td>Modified On (UTC):</td>
+            <td id="modified-on">--</td>
+          </tr>
+          <tr>
+            <td>Time Taken:</td>
+            <td id="timing">--</td>
+          </tr>
+        </table>
+        <div class="error" id="error"></div>
+      </div>
+    </div>
+    <script>
+      // Constants
+      const PROXY_URL = "/api/proxy";
+      const UPDATE_URL = "https://e1.theflex.ai/anyapp/update/";
+      const SEARCH_URL = "https://e1.theflex.ai/anyapp/search/";
+      const APP_SECRET = "38475203487kwsdjfvb1023897yfwbhekrfj";
+      const RECORD_ID = "rec_001";
+      const FEATURE_NAME = "test_001";
+      const DATASET = "feature_data";
+
+      // Format UTC ISO string to "YYYY-MM-DD | HH:mm:ss"
+      function formatUTCForDisplay(isoString) {
+        if (!isoString) return "N/A";
+        const date = new Date(isoString);
+        if (isNaN(date.getTime())) return isoString;
+        const pad = (n) => n.toString().padStart(2, "0");
+        const year = date.getUTCFullYear();
+        const month = pad(date.getUTCMonth() + 1);
+        const day = pad(date.getUTCDate());
+        const hour = pad(date.getUTCHours());
+        const minute = pad(date.getUTCMinutes());
+        const second = pad(date.getUTCSeconds());
+        return `${year}-${month}-${day} | ${hour}:${minute}:${second}`;
+      }
+
+      // Format local time with microseconds: "YYYY-MM-DD | HH:mm:ss.mmmuuu"
+      function formatLocalWithMicros(date) {
+        if (!date) return "N/A";
+        const pad = (n, len = 2) => n.toString().padStart(len, "0");
+        const year = date.getFullYear();
+        const month = pad(date.getMonth() + 1);
+        const day = pad(date.getDate());
+        const hour = pad(date.getHours());
+        const minute = pad(date.getMinutes());
+        const second = pad(date.getSeconds());
+        const ms = pad(date.getMilliseconds(), 3);
+        let micros = "000";
+        if (window.performance && window.performance.now) {
+          const perf = Math.floor((performance.now() % 1) * 1000);
+          micros = pad(perf, 3);
+        }
+        return `${year}-${month}-${day} | ${hour}:${minute}:${second}.${ms}${micros}`;
+      }
+
+      function wait(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      document
+        .getElementById("dashboard-form")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          const value = document.getElementById("value").value.trim();
+          const delay = document.getElementById("delay").value;
+          const submitBtn = document.getElementById("submit-btn");
+          const fetchedValueEl = document.getElementById("fetched-value");
+          const modifiedOnEl = document.getElementById("modified-on");
+          const timingEl = document.getElementById("timing");
+          const errorEl = document.getElementById("error");
+          const updateOkTimeEl = document.getElementById("update-ok-time");
+          const fetchTimeEl = document.getElementById("fetch-time");
+
+          submitBtn.disabled = true;
+          fetchedValueEl.textContent = "--";
+          modifiedOnEl.textContent = "--";
+          timingEl.textContent = "--";
+          errorEl.textContent = "";
+          updateOkTimeEl.textContent = "--";
+          fetchTimeEl.textContent = "--";
+
+          if (!value) {
+            errorEl.textContent = "Value to update cannot be empty.";
+            submitBtn.disabled = false;
+            return;
+          }
+
+          const start = performance.now();
+
+          // Use UTC time for modified_on
+          const now = new Date();
+          const pad = (n) => n.toString().padStart(2, "0");
+          const year = now.getUTCFullYear();
+          const month = pad(now.getUTCMonth() + 1);
+          const day = pad(now.getUTCDate());
+          const hour = pad(now.getUTCHours());
+          const minute = pad(now.getUTCMinutes());
+          const second = pad(now.getUTCSeconds());
+          const utcISOString = `${year}-${month}-${day}T${hour}:${minute}:${second}+00:00`;
+
+          // 1. Send update via proxy
+          const updatePayload = {
+            url: UPDATE_URL,
+            payload: {
+              data: {
+                record_id: RECORD_ID,
+                feature_name: FEATURE_NAME,
+                fields_to_update: {
+                  value: value,
+                  modified_on: utcISOString,
+                },
+              },
+              dataset: DATASET,
+              app_secret: APP_SECRET,
+            },
+          };
+
+          try {
+            const updateRes = await fetch(PROXY_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(updatePayload),
+            });
+
+            // 2. Capture the exact time of 200 OK (with microseconds)
+            if (updateRes.ok) {
+              const okTime = new Date();
+              updateOkTimeEl.textContent = formatLocalWithMicros(okTime);
+            } else {
+              errorEl.textContent = "Failed to update value.";
+              submitBtn.disabled = false;
+              return;
+            }
+
+            // 3. Wait for the specified delay (seconds to ms)
+            let delaySec = Number(delay);
+            if (isNaN(delaySec) || delaySec < 0) delaySec = 0;
+            const delayMs = Math.round(delaySec * 1000);
+            if (delayMs > 0) await wait(delayMs);
+
+            // 4. Capture fetch requested time (with microseconds)
+            const fetchRequestedAt = new Date();
+            fetchTimeEl.textContent = formatLocalWithMicros(fetchRequestedAt);
+
+            // 5. Fetch updated value via proxy
+            const searchPayload = {
+              url: SEARCH_URL,
+              payload: {
+                conditions: [
+                  {
+                    field: "feature_name",
+                    value: FEATURE_NAME,
+                    search_type: "exact",
+                  },
+                  {
+                    field: "record_id",
+                    value: RECORD_ID,
+                    search_type: "exact",
+                  },
+                ],
+                dataset: DATASET,
+                app_secret: APP_SECRET,
+              },
+            };
+
+            const searchRes = await fetch(PROXY_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(searchPayload),
+            });
+
+            if (!searchRes.ok) {
+              errorEl.textContent = "Failed to fetch updated value.";
+              submitBtn.disabled = false;
+              return;
+            }
+
+            const data = await searchRes.json();
+            const foundValue = data?.data?.[0]?.value ?? "N/A";
+            const modifiedOn = data?.data?.[0]?.modified_on ?? "N/A";
+            fetchedValueEl.textContent = foundValue;
+            modifiedOnEl.textContent = formatUTCForDisplay(modifiedOn);
+
+            const elapsed = performance.now() - start;
+            timingEl.textContent = `${elapsed.toFixed(2)} ms`;
+          } catch (err) {
+            errorEl.textContent = "Unexpected error: " + err;
+          } finally {
+            submitBtn.disabled = false;
+          }
+        });
+    </script>
+  </body>
 </html>
