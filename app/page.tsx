@@ -9,10 +9,9 @@ const RECORD_ID = "rec_001";
 const FEATURE_NAME = "test_001";
 const DATASET = "feature_data";
 
-// Helper: Format UTC ISO string to "YYYY-MM-DD | HH:mm:ss"
+// Format UTC ISO string to "YYYY-MM-DD | HH:mm:ss"
 function formatUTCForDisplay(isoString: string) {
   if (!isoString) return "N/A";
-  // Accepts: 2025-07-08T14:54:15+00:00 or 2025-07-08T14:54:15Z
   const date = new Date(isoString);
   if (isNaN(date.getTime())) return isoString;
   const pad = (n: number) => n.toString().padStart(2, "0");
@@ -25,6 +24,26 @@ function formatUTCForDisplay(isoString: string) {
   return `${year}-${month}-${day} | ${hour}:${minute}:${second}`;
 }
 
+// Format local time with microseconds: "YYYY-MM-DD | HH:mm:ss.mmmuuu"
+function formatLocalWithMicros(date: Date) {
+  if (!date) return "N/A";
+  const pad = (n: number, len = 2) => n.toString().padStart(len, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hour = pad(date.getHours());
+  const minute = pad(date.getMinutes());
+  const second = pad(date.getSeconds());
+  const ms = pad(date.getMilliseconds(), 3);
+  // Use performance.now() for microseconds if available
+  let micros = "000";
+  if (typeof performance !== "undefined" && performance.now) {
+    const perf = Math.floor((performance.now() % 1) * 1000);
+    micros = pad(perf, 3);
+  }
+  return `${year}-${month}-${day} | ${hour}:${minute}:${second}.${ms}${micros}`;
+}
+
 export default function Dashboard() {
   const [value, setValue] = useState("");
   const [delay, setDelay] = useState("0");
@@ -33,6 +52,10 @@ export default function Dashboard() {
   const [timing, setTiming] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // New fields
+  const [updateOkTime, setUpdateOkTime] = useState("");
+  const [fetchRequestedTime, setFetchRequestedTime] = useState("");
 
   // Async wait helper
   const wait = (ms: number) =>
@@ -43,6 +66,8 @@ export default function Dashboard() {
     setError(null);
     setFetchedValue("");
     setModifiedOnUTC("");
+    setUpdateOkTime("");
+    setFetchRequestedTime("");
     const start = performance.now();
 
     // Use UTC time for modified_on
@@ -78,7 +103,9 @@ export default function Dashboard() {
       body: JSON.stringify(updatePayload),
     });
 
+    // Capture 200 OK time (with microseconds)
     if (updateRes.ok) {
+      setUpdateOkTime(formatLocalWithMicros(new Date()));
       // Wait for the specified delay (seconds to milliseconds)
       let delaySec = Number(delay);
       if (isNaN(delaySec) || delaySec < 0) delaySec = 0;
@@ -87,6 +114,9 @@ export default function Dashboard() {
       if (delayMs > 0) {
         await wait(delayMs);
       }
+
+      // Capture fetch requested time (with microseconds)
+      setFetchRequestedTime(formatLocalWithMicros(new Date()));
 
       // Fetch updated value via proxy
       const searchPayload = {
@@ -175,23 +205,55 @@ export default function Dashboard() {
         </button>
       </form>
       <div className="mt-8">
-        <div>
-          <span className="font-medium text-gray-300">Fetched Value:</span>{" "}
-          <span className="text-green-400">{fetchedValue}</span>
-        </div>
-        <div>
-          <span className="font-medium text-gray-300">Modified On (UTC):</span>{" "}
-          <span className="text-yellow-300">
-            {formatUTCForDisplay(modifiedOnUTC)}
-          </span>
-        </div>
-        <div>
-          <span className="font-medium text-gray-300">Time Taken:</span>{" "}
-          <span className="text-cyan-400">
-            {timing !== null ? `${timing.toFixed(2)} ms` : "--"}
-          </span>
-        </div>
-        {error && <div className="mt-4 text-red-400 font-medium">{error}</div>}
+        <table className="w-full border-separate border-spacing-y-2">
+          <tbody>
+            <tr>
+              <td className="text-amber-400 font-medium bg-gray-900 rounded-l px-2 py-1">
+                Update 200 OK At:
+              </td>
+              <td className="update-ok-time text-amber-400 font-mono font-semibold rounded-r px-2 py-1">
+                {updateOkTime || "--"}
+              </td>
+            </tr>
+            <tr>
+              <td className="text-sky-400 font-medium bg-gray-900 rounded-l px-2 py-1">
+                Fetch Requested At:
+              </td>
+              <td className="fetch-time text-sky-400 font-mono font-semibold rounded-r px-2 py-1">
+                {fetchRequestedTime || "--"}
+              </td>
+            </tr>
+            <tr>
+              <td className="text-green-400 font-medium bg-gray-900 rounded-l px-2 py-1">
+                Fetched Value:
+              </td>
+              <td className="value text-green-400 font-mono font-semibold rounded-r px-2 py-1">
+                {fetchedValue || "--"}
+              </td>
+            </tr>
+            <tr>
+              <td className="text-yellow-300 font-medium bg-gray-900 rounded-l px-2 py-1">
+                Modified On (UTC):
+              </td>
+              <td className="modified text-yellow-300 font-mono font-semibold rounded-r px-2 py-1">
+                {formatUTCForDisplay(modifiedOnUTC)}
+              </td>
+            </tr>
+            <tr>
+              <td className="text-cyan-400 font-medium bg-gray-900 rounded-l px-2 py-1">
+                Time Taken:
+              </td>
+              <td className="timing text-cyan-400 font-mono font-semibold rounded-r px-2 py-1">
+                {timing !== null ? `${timing.toFixed(2)} ms` : "--"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        {error && (
+          <div className="mt-4 text-red-400 font-medium bg-gray-900 rounded px-3 py-2">
+            {error}
+          </div>
+        )}
       </div>
     </div>
   );
